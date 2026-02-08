@@ -67,7 +67,10 @@ rich.traceback.install(show_locals=False)
 import signal  # Aggressively exit on ctrl+c
 
 if threading.current_thread() is threading.main_thread():
-    signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+    try:
+        signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+    except ValueError:
+        pass  # Not in main thread of the main interpreter (e.g. subprocess worker)
 
 # Assume advantage kernel has been built if CUDA compiler is available
 ADVANTAGE_CUDA = shutil.which("nvcc") is not None
