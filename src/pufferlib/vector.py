@@ -42,14 +42,14 @@ def send_precheck(vecenv, actions):
 
 def reset(vecenv, seed=42):
     vecenv.async_reset(seed)
-    obs, rewards, terminals, truncations, teacher_actions, infos, env_ids, masks = vecenv.recv()
+    obs, rewards, terminals, truncations, _teacher_actions, infos, env_ids, masks = vecenv.recv()
     return obs, infos
 
 
 def step(vecenv, actions):
     actions = np.asarray(actions)
     vecenv.send(actions)
-    obs, rewards, terminals, truncations, teacher_actions, infos, env_ids, masks = vecenv.recv()
+    obs, rewards, terminals, truncations, _teacher_actions, infos, env_ids, masks = vecenv.recv()
     return obs, rewards, terminals, truncations, infos  # include env_ids or no?
 
 
@@ -140,7 +140,7 @@ class Serial:
             actions = np.ascontiguousarray(actions)
 
         actions = send_precheck(self, actions)
-        rewards, dones, truncateds, teacher_actions, self.infos = [], [], [], [], []
+        rewards, dones, truncateds, self.infos = [], [], [], []
         ptr = 0
         for idx, env in enumerate(self.envs):
             end = ptr + self.agents_per_env[idx]
@@ -337,6 +337,7 @@ class Multiprocessing:
         self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.agents_per_batch)
         self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.agents_per_batch)
         self.agent_ids = np.arange(num_agents).reshape(num_workers, agents_per_worker)
+        self.atn_shape = tuple(atn_shape)
 
         from multiprocessing import RawArray
 
@@ -488,7 +489,9 @@ class Multiprocessing:
         r = buf["rewards"][w_slice].ravel()
         d = buf["terminals"][w_slice].ravel()
         t = buf["truncations"][w_slice].ravel()
-        ta = buf["teacher_actions"][w_slice].ravel()
+        ta = buf["teacher_actions"][w_slice].reshape(-1, *self.atn_shape)
+        if not self.atn_shape:
+            ta = ta.ravel()
 
         infos = []
         for i in s_range:
@@ -636,6 +639,10 @@ class Ray:
         r = np.stack(r, axis=0).ravel()
         d = np.stack(d, axis=0).ravel()
         t = np.stack(t, axis=0).ravel()
+        ta = np.stack(ta, axis=0).reshape(self.atn_batch_shape)
+        ta = ta.reshape(-1, *self.driver_env.single_action_space.shape)
+        if not self.driver_env.single_action_space.shape:
+            ta = ta.ravel()
         m = np.stack(m, axis=0).ravel()
         agent_ids = self.agent_ids[env_id].ravel()
         return o, r, d, t, ta, infos, agent_ids, m
@@ -759,7 +766,7 @@ def make(env_creator_or_creators, env_args=None, env_kwargs=None, backend=Puffer
 
     # Sanity check args
     for k in kwargs:
-        if k not in ["num_workers", "batch_size", "zero_copy", "overwork", "backend"]:
+        if k not in ["num_workers", "batch_size", "zero_copy", "sync_traj", "overwork", "backend"]:
             raise pufferlib.APIUsageError(f"Invalid argument: {k}")
 
     # TODO: First step action space check

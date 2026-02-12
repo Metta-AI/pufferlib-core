@@ -24,6 +24,7 @@ class Default(nn.Module):
         super().__init__()
         self.hidden_size = hidden_size
         self.is_continuous = isinstance(env.single_action_space, pufferlib.spaces.Box)
+        self.is_multidiscrete = isinstance(env.single_action_space, pufferlib.spaces.MultiDiscrete)
         try:
             self.is_dict_obs = isinstance(env.env.observation_space, pufferlib.spaces.Dict)
         except Exception:
@@ -32,7 +33,10 @@ class Default(nn.Module):
         if self.is_dict_obs:
             self.dtype = pufferlib.pytorch.nativize_dtype(env.emulated)
             input_size = int(sum(np.prod(v.shape) for v in env.env.observation_space.values()))
-            self.encoder = nn.Linear(input_size, self.hidden_size)
+            self.encoder = torch.nn.Sequential(
+                pufferlib.pytorch.layer_init(nn.Linear(input_size, hidden_size)),
+                nn.GELU(),
+            )
         else:
             num_obs = np.prod(env.single_observation_space.shape)
             self.encoder = torch.nn.Sequential(
@@ -40,7 +44,11 @@ class Default(nn.Module):
                 nn.GELU(),
             )
 
-        if not self.is_continuous:
+        if self.is_multidiscrete:
+            self.action_nvec = tuple(int(e) for e in env.single_action_space.nvec)
+            num_atns = int(sum(self.action_nvec))
+            self.decoder = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, num_atns), std=0.01)
+        elif not self.is_continuous:
             num_atns = env.single_action_space.n
             self.decoder = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, num_atns), std=0.01)
         else:
@@ -73,7 +81,9 @@ class Default(nn.Module):
     def decode_actions(self, hidden):
         """Decodes a batch of hidden states into (multi)discrete actions.
         Assumes no time dimension (handled by LSTM wrappers)."""
-        if self.is_continuous:
+        if self.is_multidiscrete:
+            logits = self.decoder(hidden).split(self.action_nvec, dim=-1)
+        elif self.is_continuous:
             mean = self.decoder_mean(hidden)
             logstd = self.decoder_logstd.expand_as(mean)
             std = torch.exp(logstd)

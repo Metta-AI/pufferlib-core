@@ -48,7 +48,10 @@ build_with_cuda = has_nvcc and (force_cuda or (cuda_runtime_available and not di
 
 if build_with_cuda:
     extension_class = CUDAExtension
-    torch_sources.append("src/pufferlib/extensions/cuda/pufferlib.cu")
+    # PufferLib 4.0 kernels: CUDA advantage + fused kernels live in separate CU files.
+    torch_sources.append("src/pufferlib/extensions/cuda/advantage.cu")
+    torch_sources.append("src/pufferlib/extensions/modules.cu")
+    torch_sources.append("src/pufferlib/extensions/modules_bindings.cpp")
     if force_cuda and not cuda_runtime_available:
         print("Building with CUDA support (PUFFERLIB_BUILD_CUDA=1; runtime CUDA unavailable)")
     else:

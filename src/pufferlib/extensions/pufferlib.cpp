@@ -44,18 +44,21 @@ void vtrace_check(torch::Tensor values, torch::Tensor rewards,
         torch::Tensor dones, torch::Tensor importance, torch::Tensor advantages,
         int num_steps, int horizon) {
 
-    // Validate input tensors
-    torch::Device device = values.device();
-    for (const torch::Tensor& t : {values, rewards, dones, importance, advantages}) {
-        TORCH_CHECK(t.dim() == 2, "Tensor must be 2D");
-        TORCH_CHECK(t.device() == device, "All tensors must be on same device");
-        TORCH_CHECK(t.size(0) == num_steps, "First dimension must match num_steps");
-        TORCH_CHECK(t.size(1) == horizon, "Second dimension must match horizon");
+    auto check = [&](const torch::Tensor& t, const char* name) {
+        TORCH_CHECK(t.dim() == 2, name, " must be 2D");
+        TORCH_CHECK(t.device() == values.device(), "All tensors must be on same device");
+        TORCH_CHECK(t.size(0) == num_steps, name, ": first dimension must match num_steps");
+        TORCH_CHECK(t.size(1) == horizon, name, ": second dimension must match horizon");
         TORCH_CHECK(t.dtype() == torch::kFloat32, "All tensors must be float32");
-        if (!t.is_contiguous()) {
-            t.contiguous();
-        }
-    }
+        TORCH_CHECK(t.is_contiguous(), name, " must be contiguous");
+    };
+
+    // Validate input tensors
+    check(values, "values");
+    check(rewards, "rewards");
+    check(dones, "dones");
+    check(importance, "importance");
+    check(advantages, "advantages");
 }
 
 
@@ -86,6 +89,13 @@ void compute_puff_advantage_cpu(torch::Tensor values, torch::Tensor rewards,
 
 TORCH_LIBRARY(pufferlib, m) {
    m.def("compute_puff_advantage(Tensor(a!) values, Tensor(b!) rewards, Tensor(c!) dones, Tensor(d!) importance, Tensor(e!) advantages, float gamma, float lambda, float rho_clip, float c_clip) -> ()");
+   m.def("mingru_gate(Tensor state, Tensor combined) -> (Tensor, Tensor)");
+   m.def("fc_max(Tensor x, Tensor W, Tensor b) -> Tensor");
+   m.def("logcumsumexp_cuda(Tensor x) -> Tensor");
+   // PufferLib 4.0 fused CUDA ops (CUDA-only impls; schema is always registered).
+   m.def("sample_logits(Tensor logits, Tensor logstd, Tensor value, Tensor actions_out, Tensor logprobs_out, Tensor value_out, Tensor act_sizes, int seed, Tensor offset) -> ()");
+   m.def("fused_scan_checkpointed(Tensor combined, Tensor state) -> (Tensor, Tensor)");
+   m.def("fused_ppo_loss_optimized(Tensor logits, Tensor logstd, Tensor values_pred, Tensor actions, Tensor old_logprobs, Tensor advantages, Tensor prio, Tensor values, Tensor returns, Tensor adv_mean, Tensor adv_var, Tensor ratio_out, Tensor newvalue_out, Tensor act_sizes, float clip_coef, float vf_clip_coef, float vf_coef, float ent_coef) -> Tensor");
  }
 
 TORCH_LIBRARY_IMPL(pufferlib, CPU, m) {

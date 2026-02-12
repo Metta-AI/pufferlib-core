@@ -2,6 +2,7 @@
 PufferLib Core - Minimal vectorized environment functionality
 """
 
+import importlib
 import sys
 
 
@@ -11,10 +12,13 @@ def _import_modules():
 
     # Temporarily add pufferlib to the current module namespace to resolve imports
     current_module = sys.modules[__name__]
+    # Re-export core API and exceptions to match upstream import patterns.
     current_module.PufferEnv = pufferlib.PufferEnv
     current_module.set_buffers = pufferlib.set_buffers
     current_module.unroll_nested_dict = pufferlib.unroll_nested_dict
     current_module.APIUsageError = pufferlib.APIUsageError
+    current_module.InvalidAgentError = pufferlib.InvalidAgentError
+    current_module.EnvironmentSetupError = pufferlib.EnvironmentSetupError
 
     from . import emulation, vector
 
@@ -34,16 +38,35 @@ def _import_modules():
     current_module.models = models
     pytorch_modules = [pytorch, models]
 
-    # Import pufferl module
-    from . import pufferl
-
-    current_module.pufferl = pufferl
-
-    return spaces, pufferlib, emulation, vector, pytorch_modules, pufferl
+    return spaces, pufferlib, emulation, vector, pytorch_modules
 
 
 # Perform the imports
-spaces, pufferlib, emulation, vector, pytorch_modules, pufferl = _import_modules()
+spaces, pufferlib, emulation, vector, pytorch_modules = _import_modules()
 
-__version__ = "3.0.3"
-__all__ = ["spaces", "emulation", "vector", "pufferlib", "pytorch", "models", "pufferl"]
+
+def __getattr__(name: str):
+    # Avoid importing heavy training dependencies (torch.distributed) on simple `import pufferlib`.
+    if name == "pufferl":
+        mod = importlib.import_module(".pufferl", __name__)
+        globals()["pufferl"] = mod
+        return mod
+    raise AttributeError(name)
+
+# Keep this in sync with `packages/pufferlib-core/pyproject.toml`.
+__version__ = "3.0.17"
+__all__ = [
+    "spaces",
+    "emulation",
+    "vector",
+    "pufferlib",
+    "pytorch",
+    "models",
+    "pufferl",
+    "PufferEnv",
+    "set_buffers",
+    "unroll_nested_dict",
+    "APIUsageError",
+    "InvalidAgentError",
+    "EnvironmentSetupError",
+]

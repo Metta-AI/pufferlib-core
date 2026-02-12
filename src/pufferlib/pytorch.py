@@ -137,11 +137,7 @@ def _nativize_tensor(observation: torch.Tensor, native_dtype: NativeDType):
 def nativize_observation(observation, emulated):
     # TODO: Any way to check that user has not accidentally cast data to float?
     # float is natively supported, but only if that is the actual correct type
-    return nativize_tensor(
-        observation,
-        emulated["observation_dtype"],
-        emulated["emulated_observation_dtype"],
-    )
+    return nativize_tensor(observation, nativize_dtype(emulated))
 
 
 def flattened_tensor_size(native_dtype):
