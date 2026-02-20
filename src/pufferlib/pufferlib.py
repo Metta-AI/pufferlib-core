@@ -75,7 +75,8 @@ class PufferEnv:
 
         set_buffers(self, buf)
 
-        self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.num_agents)
+        transport_single_action_space = getattr(self, "single_transport_action_space", self.single_action_space)
+        self.action_space = pufferlib.spaces.joint_space(transport_single_action_space, self.num_agents)
         self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.num_agents)
         self.agent_ids = np.arange(self.num_agents)
 

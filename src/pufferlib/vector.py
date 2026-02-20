@@ -19,6 +19,12 @@ MAIN = 5
 INFO = 6
 
 
+def _single_transport_action_space(env):
+    # Optional transport action space used for envs that encode multiple action
+    # branches into a single scalar payload before env.step() decodes it.
+    return getattr(env, "single_transport_action_space", env.single_action_space)
+
+
 def recv_precheck(vecenv):
     if vecenv.flag != RECV:
         raise pufferlib.APIUsageError("Call reset before stepping")
@@ -68,7 +74,8 @@ class Serial:
 
         self.single_observation_space = self.driver_env.single_observation_space
         self.single_action_space = self.driver_env.single_action_space
-        self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.agents_per_batch)
+        self.transport_single_action_space = _single_transport_action_space(self.driver_env)
+        self.action_space = pufferlib.spaces.joint_space(self.transport_single_action_space, self.agents_per_batch)
         self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.agents_per_batch)
 
         set_buffers(self, buf)
@@ -334,7 +341,8 @@ class Multiprocessing:
 
         self.single_observation_space = driver_env.single_observation_space
         self.single_action_space = driver_env.single_action_space
-        self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.agents_per_batch)
+        self.transport_single_action_space = _single_transport_action_space(driver_env)
+        self.action_space = pufferlib.spaces.joint_space(self.transport_single_action_space, self.agents_per_batch)
         self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.agents_per_batch)
         self.agent_ids = np.arange(num_agents).reshape(num_workers, agents_per_worker)
         self.atn_shape = tuple(atn_shape)
@@ -586,7 +594,8 @@ class Ray:
 
         self.single_observation_space = driver_env.single_observation_space
         self.single_action_space = driver_env.single_action_space
-        self.action_space = pufferlib.spaces.joint_space(self.single_action_space, self.agents_per_batch)
+        self.transport_single_action_space = _single_transport_action_space(driver_env)
+        self.action_space = pufferlib.spaces.joint_space(self.transport_single_action_space, self.agents_per_batch)
         self.observation_space = pufferlib.spaces.joint_space(self.single_observation_space, self.agents_per_batch)
 
         self.agent_ids = np.arange(num_agents).reshape(num_workers, agents_per_worker)
