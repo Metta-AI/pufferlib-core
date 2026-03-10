@@ -72,8 +72,12 @@ if threading.current_thread() is threading.main_thread():
     except ValueError:
         pass  # Not in main thread of the main interpreter (e.g. subprocess worker)
 
-# Assume advantage kernel has been built if CUDA compiler is available
-ADVANTAGE_CUDA = shutil.which("nvcc") is not None
+def _has_advantage_cuda_kernel() -> bool:
+    return bool(torch._C._dispatch_has_kernel_for_dispatch_key("pufferlib::compute_puff_advantage", "CUDA"))
+
+
+# Detect the kernel on the loaded extension, not from build tools present on the host.
+ADVANTAGE_CUDA = _has_advantage_cuda_kernel()
 
 
 class PuffeRL:
@@ -726,9 +730,7 @@ class PuffeRL:
 def compute_puff_advantage(
     values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
 ):
-    """CUDA kernel for puffer advantage with automatic CPU fallback. You need
-    nvcc (in cuda-dev-tools or in a cuda-dev docker base) for PufferLib to
-    compile the fast version."""
+    """Compute puffer advantage with CPU fallback when the loaded extension lacks a CUDA kernel."""
 
     device = values.device
     if not ADVANTAGE_CUDA:
