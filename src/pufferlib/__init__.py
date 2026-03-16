@@ -54,7 +54,7 @@ def __getattr__(name: str):
     raise AttributeError(name)
 
 # Keep this in sync with `packages/pufferlib-core/pyproject.toml`.
-__version__ = "3.0.19"
+__version__ = "3.0.20"
 __all__ = [
     "spaces",
     "emulation",
