@@ -37,7 +37,9 @@ dependencies = [
   "numpy",
   "gymnasium",
   "psutil",
-  "torch",
+  # Pinned to match build-system.requires — the C++ extension (.so) is compiled
+  # against this exact torch ABI, so a different runtime torch will segfault.
+  "torch==2.9.0",
   "nvidia-ml-py",
   "rich",
   "rich-argparse",
