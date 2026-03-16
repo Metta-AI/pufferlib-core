@@ -50,11 +50,17 @@ import pufferlib.sweep
 import pufferlib.vector
 
 try:
-    from pufferlib import _C
+    from pufferlib import _C  # noqa: F401 — registers torch.ops.pufferlib.* kernels
+
+    _C_AVAILABLE = True
 except ImportError:
-    raise ImportError(
-        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, try installing with --no-build-isolation"
+    import logging as _logging
+
+    _logging.getLogger("pufferlib").warning(
+        "Could not load pufferlib._C extension (likely missing CUDA runtime). "
+        "Training will use a pure-PyTorch fallback for advantage computation."
     )
+    _C_AVAILABLE = False
 
 import rich
 import rich.traceback
@@ -73,7 +79,10 @@ if threading.current_thread() is threading.main_thread():
         pass  # Not in main thread of the main interpreter (e.g. subprocess worker)
 
 def _has_advantage_cuda_kernel() -> bool:
-    return bool(torch._C._dispatch_has_kernel_for_dispatch_key("pufferlib::compute_puff_advantage", "CUDA"))
+    try:
+        return bool(torch._C._dispatch_has_kernel_for_dispatch_key("pufferlib::compute_puff_advantage", "CUDA"))
+    except RuntimeError:
+        return False
 
 
 # Detect the kernel on the loaded extension, not from build tools present on the host.
@@ -731,6 +740,12 @@ def compute_puff_advantage(
     values, rewards, terminals, ratio, advantages, gamma, gae_lambda, vtrace_rho_clip, vtrace_c_clip
 ):
     """Compute puffer advantage with CPU fallback when the loaded extension lacks a CUDA kernel."""
+
+    if not _C_AVAILABLE:
+        raise RuntimeError(
+            "Training requires the pufferlib._C extension, which could not be loaded "
+            "(likely missing CUDA runtime). Install CUDA torch or build pufferlib-core from source."
+        )
 
     device = values.device
     if not ADVANTAGE_CUDA:
