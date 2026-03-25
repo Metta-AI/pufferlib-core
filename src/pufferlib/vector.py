@@ -504,7 +504,8 @@ class Multiprocessing:
         infos = []
         for i in s_range:
             if self.infos[i]:
-                infos.extend(self.infos[i])
+                worker_infos = self.infos[i]
+                infos.extend(worker_infos if isinstance(worker_infos, list) else [worker_infos])
                 self.infos[i] = []
 
         agent_ids = self.agent_ids[w_slice].ravel()
