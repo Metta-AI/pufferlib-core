@@ -1,7 +1,8 @@
+import importlib.util
 import os
 import platform
-import shutil
 import sys
+from pathlib import Path
 
 from setuptools import setup
 
@@ -14,6 +15,13 @@ try:
 except ImportError:
     print("Error: torch not available. Please install torch first.")
     sys.exit(1)
+
+BUILD_CONFIG_PATH = Path(__file__).with_name("build_config.py")
+BUILD_CONFIG_SPEC = importlib.util.spec_from_file_location("pufferlib_core_build_config", BUILD_CONFIG_PATH)
+assert BUILD_CONFIG_SPEC is not None and BUILD_CONFIG_SPEC.loader is not None
+build_config_module = importlib.util.module_from_spec(BUILD_CONFIG_SPEC)
+BUILD_CONFIG_SPEC.loader.exec_module(build_config_module)
+resolve_extension_build_config = build_config_module.resolve_extension_build_config
 
 # Build with DEBUG=1 to enable debug symbols
 DEBUG = os.getenv("DEBUG", "0") == "1"
@@ -37,9 +45,8 @@ torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
 force_cuda = os.getenv("PUFFERLIB_BUILD_CUDA", "0") == "1"
 disable_cuda = os.getenv("PUFFERLIB_DISABLE_CUDA", "0") == "1"
-has_nvcc = shutil.which("nvcc") is not None
-
-build_with_cuda = force_cuda or (has_nvcc and not disable_cuda)
+build_config = resolve_extension_build_config(force_cuda=force_cuda, disable_cuda=disable_cuda)
+build_with_cuda = build_config.build_with_cuda
 
 if build_with_cuda:
     extension_class = CUDAExtension
@@ -47,15 +54,17 @@ if build_with_cuda:
     torch_sources.append("src/pufferlib/extensions/cuda/advantage.cu")
     torch_sources.append("src/pufferlib/extensions/modules.cu")
     torch_sources.append("src/pufferlib/extensions/modules_bindings.cpp")
-    if force_cuda and not has_nvcc:
-        raise RuntimeError("PUFFERLIB_BUILD_CUDA=1 requires nvcc to be available")
-    print("Building with CUDA support")
+    print(f"Building with CUDA support (CUDA_HOME={build_config.cuda_home})")
 else:
     extension_class = CppExtension
-    if disable_cuda and has_nvcc:
-        print("Building with CPU-only support (PUFFERLIB_DISABLE_CUDA=1)")
-    else:
-        print("Building with CPU-only support")
+    message = (
+        "Building with CPU-only support (PUFFERLIB_DISABLE_CUDA=1)"
+        if disable_cuda
+        else "Building with CPU-only support"
+    )
+    print(message)
+    if build_config.warning is not None:
+        print(f"WARNING: {build_config.warning}")
 
 # Add rpath for torch libraries
 extra_link_args = []
