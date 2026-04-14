@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from typing import NamedTuple, Optional
 
@@ -25,6 +26,32 @@ def discover_cuda_home() -> Optional[str]:
     if nvcc_path is None:
         return None
     return str(Path(nvcc_path).resolve().parent.parent)
+
+
+def discover_torch_cuda_arch_list() -> Optional[str]:
+    if shutil.which("nvidia-smi") is None:
+        return None
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader,nounits"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None
+
+    archs = sorted(
+        {
+            line.strip()
+            for line in result.stdout.splitlines()
+            if line.strip() and all(part.isdigit() for part in line.strip().split(".", maxsplit=1))
+        },
+        key=lambda arch: tuple(int(part) for part in arch.split(".")),
+    )
+    if not archs:
+        return None
+    return ";".join(archs)
 
 
 def resolve_extension_build_config(

@@ -21,6 +21,7 @@ BUILD_CONFIG_SPEC = importlib.util.spec_from_file_location("pufferlib_core_build
 assert BUILD_CONFIG_SPEC is not None and BUILD_CONFIG_SPEC.loader is not None
 build_config_module = importlib.util.module_from_spec(BUILD_CONFIG_SPEC)
 BUILD_CONFIG_SPEC.loader.exec_module(build_config_module)
+discover_torch_cuda_arch_list = build_config_module.discover_torch_cuda_arch_list
 resolve_extension_build_config = build_config_module.resolve_extension_build_config
 
 # Build with DEBUG=1 to enable debug symbols
@@ -49,6 +50,11 @@ build_config = resolve_extension_build_config(force_cuda=force_cuda, disable_cud
 build_with_cuda = build_config.build_with_cuda
 
 if build_with_cuda:
+    if not os.getenv("TORCH_CUDA_ARCH_LIST"):
+        detected_cuda_archs = discover_torch_cuda_arch_list()
+        if detected_cuda_archs is not None:
+            os.environ["TORCH_CUDA_ARCH_LIST"] = detected_cuda_archs
+            print(f"Setting TORCH_CUDA_ARCH_LIST={detected_cuda_archs}")
     extension_class = CUDAExtension
     # PufferLib 4.0 kernels: CUDA advantage + fused kernels live in separate CU files.
     torch_sources.append("src/pufferlib/extensions/cuda/advantage.cu")
