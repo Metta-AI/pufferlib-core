@@ -3,6 +3,7 @@ PufferLib Core - Minimal vectorized environment functionality
 """
 
 import importlib
+from importlib import metadata
 import sys
 
 
@@ -53,8 +54,8 @@ def __getattr__(name: str):
         return mod
     raise AttributeError(name)
 
-# Keep this in sync with `packages/pufferlib-core/pyproject.toml`.
-__version__ = "3.0.21"
+
+__version__ = metadata.version("pufferlib-core")
 __all__ = [
     "spaces",
     "emulation",
