@@ -16,6 +16,16 @@ class ExtensionBuildConfig(NamedTuple):
 
 
 _AUTO = object()
+BUILD_CUDA_ENV_VAR = "BUILD_CUDA"
+
+
+def read_build_cuda_flag() -> bool | None:
+    value = os.getenv(BUILD_CUDA_ENV_VAR)
+    if value is None:
+        return None
+    if value not in {"0", "1"}:
+        raise RuntimeError("BUILD_CUDA must be unset, 0, or 1")
+    return value == "1"
 
 
 def discover_cuda_home() -> Optional[str]:
@@ -56,8 +66,7 @@ def discover_torch_cuda_arch_list() -> Optional[str]:
 
 def resolve_extension_build_config(
     *,
-    force_cuda: bool,
-    disable_cuda: bool,
+    build_cuda: bool | None,
     cuda_home: Optional[str] | object = _AUTO,
     cuda_available: Optional[bool] = None,
     has_nvcc: Optional[bool] = None,
@@ -66,27 +75,32 @@ def resolve_extension_build_config(
     resolved_cuda_available = _cuda_available() if cuda_available is None else cuda_available
     resolved_has_nvcc = _has_nvcc(resolved_cuda_home) if has_nvcc is None else has_nvcc
 
-    if force_cuda and disable_cuda:
-        raise RuntimeError("PUFFERLIB_BUILD_CUDA=1 and PUFFERLIB_DISABLE_CUDA=1 are mutually exclusive")
-
-    if force_cuda and (resolved_cuda_home is None or not resolved_has_nvcc):
+    if build_cuda and (resolved_cuda_home is None or not resolved_has_nvcc):
         raise RuntimeError(
-            "PUFFERLIB_BUILD_CUDA=1 requires a CUDA toolkit with nvcc. "
+            "BUILD_CUDA=1 requires a CUDA toolkit with nvcc. "
             "Set CUDA_HOME/CUDA_PATH to a full toolkit install or add nvcc to PATH."
         )
 
-    build_with_cuda = not disable_cuda and resolved_cuda_home is not None and resolved_has_nvcc
+    build_with_cuda = (
+        resolved_cuda_home is not None and resolved_has_nvcc if build_cuda is None else build_cuda
+    )
     warning = None
-    if not build_with_cuda and not disable_cuda and resolved_cuda_available:
-        detail = (
-            "CUDA_HOME/CUDA_PATH is set, but no nvcc compiler was found there or on PATH. "
-            "Building pufferlib-core CPU-only; CUDA training will fail until you install a full toolkit or fix "
-            "CUDA_HOME."
-            if resolved_cuda_home is not None and not resolved_has_nvcc
-            else "no CUDA toolkit was found via CUDA_HOME/CUDA_PATH/nvcc. Building pufferlib-core CPU-only; "
-            "CUDA training will fail until you reinstall after setting CUDA_HOME."
-        )
-        warning = f"CUDA-capable PyTorch detected a visible NVIDIA GPU, but {detail}"
+    if not build_with_cuda and resolved_cuda_available:
+        if build_cuda is False:
+            warning = (
+                "CUDA-capable PyTorch detected a visible NVIDIA GPU, but BUILD_CUDA=0. "
+                "Building pufferlib-core CPU-only; CUDA training will fail until you reinstall with CUDA enabled."
+            )
+        else:
+            detail = (
+                "CUDA_HOME/CUDA_PATH is set, but no nvcc compiler was found there or on PATH. "
+                "Building pufferlib-core CPU-only; CUDA training will fail until you install a full toolkit or fix "
+                "CUDA_HOME."
+                if resolved_cuda_home is not None and not resolved_has_nvcc
+                else "no CUDA toolkit was found via CUDA_HOME/CUDA_PATH/nvcc. Building pufferlib-core CPU-only; "
+                "CUDA training will fail until you reinstall after setting CUDA_HOME."
+            )
+            warning = f"CUDA-capable PyTorch detected a visible NVIDIA GPU, but {detail}"
 
     return ExtensionBuildConfig(
         build_with_cuda=build_with_cuda,

@@ -2,5 +2,7 @@
 
 Minimal PufferLib core functionality vendored into the Metta monorepo.
 
-This package builds an optional `pufferlib._C` C++/CUDA extension that registers `torch.ops.pufferlib.*` kernels when
-CUDA is available.
+This package builds an optional `pufferlib._C` C++ extension, including CUDA
+`torch.ops.pufferlib.*` kernels when a CUDA toolchain is available. Set
+`BUILD_CUDA=1` to require CUDA kernels, or `BUILD_CUDA=0` to force a CPU-only
+build.
