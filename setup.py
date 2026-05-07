@@ -22,7 +22,7 @@ assert BUILD_CONFIG_SPEC is not None and BUILD_CONFIG_SPEC.loader is not None
 build_config_module = importlib.util.module_from_spec(BUILD_CONFIG_SPEC)
 BUILD_CONFIG_SPEC.loader.exec_module(build_config_module)
 discover_torch_cuda_arch_list = build_config_module.discover_torch_cuda_arch_list
-read_build_cuda_flag = build_config_module.read_build_cuda_flag
+read_force_cuda_flag = build_config_module.read_force_cuda_flag
 resolve_extension_build_config = build_config_module.resolve_extension_build_config
 
 # Build with DEBUG=1 to enable debug symbols
@@ -45,7 +45,7 @@ torch_sources = ["src/pufferlib/extensions/pufferlib.cpp"]
 # Get torch library path for rpath
 torch_lib_path = os.path.join(os.path.dirname(torch.__file__), "lib")
 
-build_config = resolve_extension_build_config(build_cuda=read_build_cuda_flag())
+build_config = resolve_extension_build_config(force_cuda=read_force_cuda_flag())
 build_with_cuda = build_config.build_with_cuda
 
 if build_with_cuda:

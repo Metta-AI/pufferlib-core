@@ -16,15 +16,15 @@ class ExtensionBuildConfig(NamedTuple):
 
 
 _AUTO = object()
-BUILD_CUDA_ENV_VAR = "BUILD_CUDA"
+FORCE_CUDA_ENV_VAR = "FORCE_CUDA"
 
 
-def read_build_cuda_flag() -> bool | None:
-    value = os.getenv(BUILD_CUDA_ENV_VAR)
+def read_force_cuda_flag() -> bool | None:
+    value = os.getenv(FORCE_CUDA_ENV_VAR)
     if value is None:
         return None
     if value not in {"0", "1"}:
-        raise RuntimeError("BUILD_CUDA must be unset, 0, or 1")
+        raise RuntimeError("FORCE_CUDA must be unset, 0, or 1")
     return value == "1"
 
 
@@ -66,7 +66,7 @@ def discover_torch_cuda_arch_list() -> Optional[str]:
 
 def resolve_extension_build_config(
     *,
-    build_cuda: bool | None,
+    force_cuda: bool | None,
     cuda_home: Optional[str] | object = _AUTO,
     cuda_available: Optional[bool] = None,
     has_nvcc: Optional[bool] = None,
@@ -75,20 +75,20 @@ def resolve_extension_build_config(
     resolved_cuda_available = _cuda_available() if cuda_available is None else cuda_available
     resolved_has_nvcc = _has_nvcc(resolved_cuda_home) if has_nvcc is None else has_nvcc
 
-    if build_cuda and (resolved_cuda_home is None or not resolved_has_nvcc):
+    if force_cuda and (resolved_cuda_home is None or not resolved_has_nvcc):
         raise RuntimeError(
-            "BUILD_CUDA=1 requires a CUDA toolkit with nvcc. "
+            "FORCE_CUDA=1 requires a CUDA toolkit with nvcc. "
             "Set CUDA_HOME/CUDA_PATH to a full toolkit install or add nvcc to PATH."
         )
 
     build_with_cuda = (
-        resolved_cuda_home is not None and resolved_has_nvcc if build_cuda is None else build_cuda
+        resolved_cuda_home is not None and resolved_has_nvcc if force_cuda is None else force_cuda
     )
     warning = None
     if not build_with_cuda and resolved_cuda_available:
-        if build_cuda is False:
+        if force_cuda is False:
             warning = (
-                "CUDA-capable PyTorch detected a visible NVIDIA GPU, but BUILD_CUDA=0. "
+                "CUDA-capable PyTorch detected a visible NVIDIA GPU, but FORCE_CUDA=0. "
                 "Building pufferlib-core CPU-only; CUDA training will fail until you reinstall with CUDA enabled."
             )
         else:
